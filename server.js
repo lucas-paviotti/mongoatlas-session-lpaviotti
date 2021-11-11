@@ -1,14 +1,16 @@
 const express = require('express');
-const Producto = require('./modules/producto.js');
 const exphbs = require('express-handlebars');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
-let { ProductoModelo } = require('./models/productos');
-let { MensajeModelo } = require('./models/mensajes');
+let { ProductoModelo } = require('./models/Productos');
+let { MensajeModelo } = require('./models/Mensajes');
 const generador = require('./generador/productos');
 const {normalize, schema} = require('normalizr');
 const util = require('util'); 
+const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const advancedOptions = {useNewUrlParser: true, useUnifiedTopology: true};
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -19,10 +21,14 @@ app.use(express.urlencoded({extended: true}));
 app.use(express.static(`${__dirname}/public`));
 app.use('/api', routerApi);
 app.use(session({
+    store: MongoStore.create({
+        mongoUrl: '',
+        mongoOptions: advancedOptions
+    }),
     secret: 'secreto',
     resave: true,
-    saveUninitialized: true,
-    cookie: { maxAge: 60000 }
+    saveUninitialized: false,
+    cookie: { maxAge: 600000 }
 }));
 
 const server = app.listen(PORT, () => {
@@ -102,12 +108,11 @@ routerApi.get('/productos/listar/:id', async (req, res) => {
 routerApi.post('/productos/guardar/', async (req, res) => {
     try {
         let { title, price, thumbnail } = req.body;
-        let producto = new Producto(title,price,thumbnail);
         
         const nuevoProducto = new ProductoModelo({
-            title: producto.title,
-            price: producto.price,
-            thumbnail: producto.thumbnail
+            title: title,
+            price: price,
+            thumbnail: thumbnail
         });
 
         await nuevoProducto.save();
@@ -168,6 +173,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/login', async (req, res) => {
+    console.log(req.session)
     if (req.session.user) {
         res.redirect('/')
     } else {
@@ -178,6 +184,7 @@ app.get('/login', async (req, res) => {
 app.post('/login/true', async (req, res) => {
     let { nombre } = req.body;
     req.session.user = nombre;
+    //console.log(nombre, req.session);
     res.status(200).send({ message: "Sesión guardada correctamente." });
 });
 
@@ -230,12 +237,11 @@ io.on("connection", async (socket) => {
     socket.on('nuevoProducto', async (data) => {
         try {
             let { title, price, thumbnail } = data;
-            let producto = new Producto(title,price,thumbnail);
             
             const nuevoProducto = new ProductoModelo({
-                title: producto.title,
-                price: producto.price,
-                thumbnail: producto.thumbnail
+                title: title,
+                price: price,
+                thumbnail: thumbnail
             });
     
             await nuevoProducto.save();            
